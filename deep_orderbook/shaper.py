@@ -124,7 +124,7 @@ class ArrayShaper:
         self.total_array[-1] = image_col
         self.prices_array[-1] = price_col
 
-        return image_col, price_col
+        return image_col[0].copy(), price_col.copy()
 
     async def build_time_level_trade(self) -> np.ndarray:
         """

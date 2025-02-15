@@ -11,3 +11,4 @@ dist
 preprocessed_data
 cache
 checkpoints
+/1_checkpoints/

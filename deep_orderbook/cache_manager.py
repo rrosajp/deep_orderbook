@@ -20,7 +20,7 @@ class ArrayCollector:
 
     def add_arrays(self, books: np.ndarray, prices: np.ndarray, stride: int) -> bool:
         """Add arrays and return True when stride is reached."""
-        self.all_books.append(books[0])
+        self.all_books.append(books)
         self.all_prices.append(prices)
         self.window_counter += 1
 
@@ -223,7 +223,7 @@ async def cache_manager_main():
     replay_conf = ReplayConfig(
         markets=["ETH-USD"],#, "BTC-USD", "ETH-BTC"],
         data_dir='/media/photoDS216/crypto/',
-        date_regexp='2025-01-*',
+        date_regexp='2025-02-0*',
         max_samples=-1,
         every="100ms",
     )

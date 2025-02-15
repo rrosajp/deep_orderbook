@@ -102,7 +102,7 @@ class Visualizer:
                 gridcolor='lightgrey',
                 zeroline=False,
                 fixedrange=True,
-                showticklabels=False,
+                # showticklabels=False,
             ),
             # Configure y-axes
             yaxis=dict(
@@ -207,6 +207,33 @@ class Visualizer:
             zmin=-1,
             zmax=1,
             showscale=False,
+        )
+
+        # Add scatter traces for 2nd and 3rd feature dimensions
+        self.feature2_trace = go.Scatter(
+            x=[],
+            y=[],
+            mode="markers",
+            marker=dict(
+                symbol="triangle-up",
+                # size=12,
+                color="rgba(0, 0, 0, 0.8)",
+            ),
+            name="Feature 2",
+            showlegend=True,
+        )
+
+        self.feature3_trace = go.Scatter(
+            x=[],
+            y=[],
+            mode="markers",
+            marker=dict(
+                symbol="triangle-down",
+                # size=12,
+                color="rgba(0, 0, 0, 0.8)",
+            ),
+            name="Feature 3",
+            showlegend=True,
         )
 
         # Heatmap for Level Proximity
@@ -352,6 +379,8 @@ class Visualizer:
         self.fig_widget.add_trace(self.pred_entry_trace, row=1, col=1)
         self.fig_widget.add_trace(self.pred_exit_trace, row=1, col=1)
         self.fig_widget.add_trace(self.im_trace, row=2, col=1)
+        self.fig_widget.add_trace(self.feature2_trace, row=2, col=1)
+        self.fig_widget.add_trace(self.feature3_trace, row=2, col=1)
         self.fig_widget.add_trace(self.t2l_trace, row=3, col=1)
         self.fig_widget.add_trace(self.pred_trace, row=4, col=1)
         self.fig_widget.add_trace(self.up_proximity_trace, row=4, col=1)
@@ -380,19 +409,19 @@ class Visualizer:
         try:
             with self.fig_widget.batch_update():
                 # Transform and clip all image data
-                books_z_data, level_reach_display, bidask = self.for_image_display(
+                books_z_data, level_reach_display, bidask, feature_points = self.for_image_display(
                     books_z_data,
                     level_reach_z_data,
                     bidask,
                     max_points=self._max_points,
                 )
                 # Transform prediction data in the same way
-                _, pred_t2l_display, _ = (
+                _, pred_t2l_display, _, _ = (
                     self.for_image_display(
                         None, pred_t2l, None, max_points=self._max_points
                     )
                     if pred_t2l is not None
-                    else (None, None, None)
+                    else (None, None, None, None)
                 )
 
                 # Update bid and ask price traces with limited history
@@ -409,8 +438,10 @@ class Visualizer:
                         else bidask[:, 1]
                     )
 
-                    # Update x-axis range to match the data
-                    self.fig_widget.layout.xaxis.range = [times[0], times[-1]]
+                    # Update x-axis range to match the data for all subplots
+                    x_range = [times[0], times[-1]]
+                    for i in range(1, 5):  # Update all 6 x-axes
+                        self.fig_widget.layout[f'xaxis{i}'].range = x_range
 
                     self.fig_widget.data[0].x = times
                     self.fig_widget.data[0].y = bid_data
@@ -470,22 +501,35 @@ class Visualizer:
                 # Update heatmaps
                 if books_z_data is not None:
                     self.fig_widget.data[6].z = books_z_data
+                    
+                    # Update feature markers if available
+                    if feature_points is not None:
+                        feature2_points, feature3_points = feature_points
+                        
+                        # Update feature 2 markers (up triangles)
+                        self.fig_widget.data[7].x = feature2_points[0]  # time dimension
+                        self.fig_widget.data[7].y = feature2_points[1]  # price level dimension
+                        
+                        # Update feature 3 markers (down triangles)
+                        self.fig_widget.data[8].x = feature3_points[0]  # time dimension
+                        self.fig_widget.data[8].y = feature3_points[1]  # price level dimension
+
                 if level_reach_display is not None:
-                    self.fig_widget.data[7].z = level_reach_display
+                    self.fig_widget.data[9].z = level_reach_display
                 if pred_t2l_display is not None:
-                    self.fig_widget.data[8].z = pred_t2l_display
+                    self.fig_widget.data[10].z = pred_t2l_display
 
                     # Update ground truth proximity traces if available
                     if up_proximity is not None and down_proximity is not None:
                         times = np.arange(len(up_proximity))[: self._max_points]
                         up_prox_data = up_proximity[-self._max_points :]
                         down_prox_data = down_proximity[-self._max_points :]
-                        self.fig_widget.data[9].x = times
-                        self.fig_widget.data[9].y = np.clip(up_prox_data, 0, 1) * (
+                        self.fig_widget.data[11].x = times
+                        self.fig_widget.data[11].y = np.clip(up_prox_data, 0, 1) * (
                             pred_t2l.shape[1] - 1
                         )
-                        self.fig_widget.data[10].x = times
-                        self.fig_widget.data[10].y = np.clip(down_prox_data, 0, 1) * (
+                        self.fig_widget.data[12].x = times
+                        self.fig_widget.data[12].y = np.clip(down_prox_data, 0, 1) * (
                             pred_t2l.shape[1] - 1
                         )
 
@@ -497,42 +541,42 @@ class Visualizer:
                         times = np.arange(len(pred_up_proximity))[: self._max_points]
                         pred_up_prox_data = pred_up_proximity[-self._max_points :]
                         pred_down_prox_data = pred_down_proximity[-self._max_points :]
-                        self.fig_widget.data[9].x = times
-                        self.fig_widget.data[9].y = np.clip(pred_up_prox_data, 0, 1) * (
+                        self.fig_widget.data[11].x = times
+                        self.fig_widget.data[11].y = np.clip(pred_up_prox_data, 0, 1) * (
                             pred_t2l.shape[1] - 1
                         )
-                        self.fig_widget.data[10].x = times
-                        self.fig_widget.data[10].y = np.clip(
+                        self.fig_widget.data[12].x = times
+                        self.fig_widget.data[12].y = np.clip(
                             pred_down_prox_data, 0, 1
                         ) * (pred_t2l.shape[1] - 1)
 
                 # Update loss traces
                 if self.losses:
                     loss_times = np.arange(len(self.losses))[-self._loss_max_points :]
-                    self.fig_widget.data[11].x = loss_times
-                    self.fig_widget.data[11].y = self.losses[-self._loss_max_points :]
+                    self.fig_widget.data[13].x = loss_times
+                    self.fig_widget.data[13].y = self.losses[-self._loss_max_points :]
 
                 if self.test_losses:
                     test_loss_times = np.arange(len(self.test_losses))[
                         -self._loss_max_points :
                     ]
-                    self.fig_widget.data[12].x = test_loss_times
-                    self.fig_widget.data[12].y = self.test_losses[
+                    self.fig_widget.data[14].x = test_loss_times
+                    self.fig_widget.data[14].y = self.test_losses[
                         -self._loss_max_points :
                     ]
 
                 # Update PnL traces
                 if gt_pnl is not None:
                     pnl_times = np.arange(len(gt_pnl))
-                    self.fig_widget.data[13].x = pnl_times
-                    self.fig_widget.data[13].y = gt_pnl[-self._max_points :]
-                    self.fig_widget.data[13].yaxis = "y7"
+                    self.fig_widget.data[15].x = pnl_times
+                    self.fig_widget.data[15].y = gt_pnl[-self._max_points :]
+                    self.fig_widget.data[15].yaxis = "y7"
 
                 if pred_pnl is not None:
                     pred_pnl_times = np.arange(len(pred_pnl))
-                    self.fig_widget.data[14].x = pred_pnl_times
-                    self.fig_widget.data[14].y = pred_pnl[-self._max_points :]
-                    self.fig_widget.data[14].yaxis = "y8"
+                    self.fig_widget.data[16].x = pred_pnl_times
+                    self.fig_widget.data[16].y = pred_pnl[-self._max_points :]
+                    self.fig_widget.data[16].yaxis = "y8"
 
         except Exception as e:
             print(f"Error updating plot: {e}")
@@ -568,18 +612,28 @@ class Visualizer:
         t2l_array: np.ndarray | None = None,
         prices_array: np.ndarray | None = None,
         max_points: int = 605,  # Default to _max_points value
-    ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
+    ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None, tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]] | None]:
         im_data: np.ndarray = np.ndarray(shape=(0, 0))
-        t2l_data: np.ndarray | np.ndarray(shape=(0, 0))
+        t2l_data: np.ndarray = np.ndarray(shape=(0, 0))
+        feature_points = None
+        
         if books_array is not None:
             # Take last max_points if array is longer
             if books_array.shape[0] > max_points:
                 books_array = books_array[-max_points:]
             im_data = books_array.copy()
-            im_data[:, :, 0] *= -0.5
-            im_data[:, :, 1:3] *= 1e6
+            im_data[:, :, 0] *= 0.5
             im_data = im_data.mean(axis=2).T
             im_data = np.clip(im_data, -1, 1)
+
+            # Extract non-zero positions for features 2 and 3
+            feature2_nonzero = np.nonzero(books_array[:, :, 1] != 0)
+            feature3_nonzero = np.nonzero(books_array[:, :, 2] != 0)
+            feature_points = (
+                (feature2_nonzero[0], feature2_nonzero[1]),
+                (feature3_nonzero[0], feature3_nonzero[1])
+            )
+
         if t2l_array is not None:
             # Take last max_points if array is longer
             if t2l_array.shape[0] > max_points:
@@ -587,7 +641,7 @@ class Visualizer:
             t2l_data = t2l_array[:, :, 0].T
             t2l_data = np.clip(t2l_data, -1, 1)
 
-        return im_data, t2l_data, prices_array
+        return im_data, t2l_data, prices_array, feature_points
 
 
 if __name__ == '__main__':
