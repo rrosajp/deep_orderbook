@@ -43,8 +43,8 @@ class Strategy:
         down_predictions = level_proximity[: self.side_width, 0]
 
         # Use max values instead of means to be more conservative
-        up_proximity = np.max(up_predictions)
-        down_proximity = np.max(down_predictions)
+        up_proximity: float = np.max(up_predictions)
+        down_proximity: float = np.max(down_predictions)
         # print(level_proximity)
         # print(f"{up_proximity=}, {down_proximity=}")
 
@@ -74,8 +74,8 @@ class Strategy:
         down_predictions = level_proximity[: self.side_width, 0]
 
         # Use max values instead of means
-        up_proximity = np.max(up_predictions)
-        down_proximity = np.max(down_predictions)
+        up_proximity: float = np.max(up_predictions)
+        down_proximity: float = np.max(down_predictions)
 
         # Exit long if:
         # 1. Down moves are predicted to be stronger than up moves
@@ -99,13 +99,13 @@ class Strategy:
         up_predictions = level_proximity[self.side_width:, 0]
         down_predictions = level_proximity[:self.side_width, 0]
         
-        up_proximity = np.mean(up_predictions)
-        down_proximity = np.mean(down_predictions)
+        up_proximity: float = float(np.mean(up_predictions))
+        down_proximity: float = float(np.mean(down_predictions))
         
         return up_proximity, down_proximity
 
     def compute_pnl(
-        self, prices: np.ndarray, level_proximity_pred: np.ndarray
+        self, prices: np.ndarray[np.dtype[np.float64], np.dtype[np.float64]], level_proximity_pred: np.ndarray[np.dtype[np.float64], np.dtype[np.float64]]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Compute PnL based on price movements and level proximity predictions.
 
@@ -145,16 +145,16 @@ class Strategy:
             # Update position based on predictions
             if self.position == 0 and self.should_get_long(curr_lp):
                 self.position = 1
-                entry_price = prices[t, 1]  # Enter at ask
+                entry_price = float(prices[t, 1])  # Enter at ask
                 # Add entry cost to PnL (mark to market at bid)
-                pnl[t] += prices[t, 0] - entry_price
+                pnl[t] += float(prices[t, 0]) - entry_price
             elif self.position == 1 and self.should_get_flat(curr_lp):
                 self.position = 0
                 self.steps_since_exit = 0  # Reset cooldown counter
 
             # If we're in a position, track the changes in bid price
             elif self.position == 1 and t > 0:  # If long and not first timestep
-                pnl[t] += prices[t, 0] - prices[t - 1, 0]  # Track changes in bid price
+                pnl[t] += float(prices[t, 0]) - float(prices[t - 1, 0])  # Track changes in bid price
 
             # Update cooldown counter if we're flat
             if self.position == 0:
@@ -163,7 +163,7 @@ class Strategy:
         return pnl, positions, up_proximities, down_proximities
 
 
-async def main():
+async def main() -> None:
     from deep_orderbook.config import ReplayConfig, ShaperConfig
     from deep_orderbook.shaper import iter_shapes_t2l
 

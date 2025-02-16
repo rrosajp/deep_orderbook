@@ -16,9 +16,9 @@ import deep_orderbook.marketdata as md
 class ArrayShaper:
     def __init__(self, config: ShaperConfig) -> None:
         self.config = config
-        self.prev_price: float = None  # type: ignore[assignment]
-        self.emaNew = 1 / 16
-        self.emaPrice: float = None  # type: ignore[assignment]
+        self.prev_price: float
+        self.ema_new_fac = 1 / 16
+        self.ema_price: float | None = None
 
         self._cut_scales = pl.arange(0, self.config.num_side_lvl, eager=True)  # ** 2
         self._cut_scales = self._cut_scales / self._cut_scales[-1]
@@ -41,10 +41,10 @@ class ArrayShaper:
         self.prices_array = np.zeros((self.config.rolling_window_size, 2)) + np.nan
 
     def update_ema(self, price: float) -> None:
-        if self.emaPrice is None:
-            self.emaPrice = price
-        self.prev_price = self.emaPrice
-        self.emaPrice = price * self.emaNew + (self.emaPrice) * (1 - self.emaNew)
+        if self.ema_price is None:
+            self.ema_price = price
+        self.prev_price = self.ema_price
+        self.ema_price = price * self.ema_new_fac + (self.ema_price) * (1 - self.ema_new_fac)
 
     def price_level_binning(
         self, df: pl.DataFrame, all_edges: list[float]
@@ -383,14 +383,14 @@ async def iter_shapes_t2l(
             await collector.cache_arrays(shaper_config, shaper, replay_config)
 
 
-async def main():
+async def main() -> None:
     import pyinstrument
 
     replay_config = ReplayConfig(
         date_regexp='2024-08-06',
         # max_samples=300,
     )
-    shaper_config = ShaperConfig(stride=1)
+    shaper_config = ShaperConfig(window_stride=1)
 
     profiler = pyinstrument.Profiler()
     with profiler:

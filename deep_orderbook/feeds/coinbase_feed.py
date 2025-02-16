@@ -1,13 +1,13 @@
 import asyncio
 import collections
 from pathlib import Path
-from typing import AsyncGenerator, Iterator, Literal
+from typing import AsyncGenerator, Iterator, Literal, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import polars as pl
 
-from coinbase.websocket import WSClient  # type: ignore[import-untyped]
+from coinbase.websocket import WSClient
 from deep_orderbook import marketdata as md
 from deep_orderbook.config import FeedConfig
 from deep_orderbook.feeds.base_feed import BaseFeed, EndFeed
@@ -49,7 +49,7 @@ class L2Event(BaseModel):
         return update
 
     @property
-    def pair(self):
+    def pair(self) -> str:
         return self.product_id
 
 
@@ -58,7 +58,7 @@ class TradeEvent(BaseModel):
     trades: list[md.Trade]
 
     @property
-    def product_id(self):
+    def product_id(self) -> str:
         # check it is the same symbol in all trades
         assert (
             len(set([trade.product_id for trade in self.trades])) == 1
@@ -73,20 +73,20 @@ class CoinbaseMessage(md.Message):
     events: list[L2Event] | list[TradeEvent] | list[SubscriptionsEvent]
 
     @property
-    def symbol(self):
+    def symbol(self) -> str:
         # check it is the same symbol in all events
         assert (
             len(set([event.product_id for event in self.events])) == 1
         ), f"Not the same symbol in events: {self.model_dump_json()}"
         return self.events[0].product_id
 
-    def is_book_update(self):
+    def is_book_update(self) -> bool:
         return self.channel == 'l2_data'
 
-    def is_trade_update(self):
+    def is_trade_update(self) -> bool:
         return self.channel == 'market_trades'
 
-    def is_subscription(self):
+    def is_subscription(self) -> bool:
         return self.channel == 'subscriptions'
 
 
@@ -98,7 +98,7 @@ class CoinbaseFeed(BaseFeed):
         self,
         config: FeedConfig = FeedConfig(),
         markets: list[str] | None = None,
-        feed_msg_queue=False,
+        feed_msg_queue: bool = False,
         replayer: Iterator[CoinbaseMessage] | None = None,
     ) -> None:
         settings = Settings()
@@ -111,7 +111,7 @@ class CoinbaseFeed(BaseFeed):
         }
         self.trade_tapes: dict[str, list[md.Trade]] = collections.defaultdict(list)
         self.run_timer = False
-        self.feed_time: datetime = None  # type: ignore[assignment]
+        self.feed_time: datetime
         self.next_cut_time = 0.0
         self.queue: asyncio.Queue[CoinbaseMessage] = asyncio.Queue()
         self.queue_one_sec: asyncio.Queue[md.MulitSymbolOneSecondEnds] = asyncio.Queue(
@@ -130,7 +130,7 @@ class CoinbaseFeed(BaseFeed):
             )
         else:
             self._client = replayer
-            self._client.on_message = self._on_polars
+            self._client.on_message = self._on_polars  # type: ignore[attr-defined]
 
     async def __aenter__(self) -> 'CoinbaseFeed':
         await self._client.open_async()
@@ -146,14 +146,14 @@ class CoinbaseFeed(BaseFeed):
         )
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+    async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         self.run_timer = False
         await self._client.unsubscribe_all_async()
         await self._client.close_async()
         await self.close_queue()
 
     async def close_queue(self) -> None:
-        self.queue.put_nowait(EndFeed())
+        self.queue.put_nowait(EndFeed())  # type: ignore[arg-type]
         # await self.queue.()
 
     @classmethod
@@ -163,7 +163,7 @@ class CoinbaseFeed(BaseFeed):
         jsonl_path: Path | None = None,
         json_str: str | None = None,
         df: pl.DataFrame | None = None,
-        explode=None,
+        explode: list[str] | None = None,
     ) -> pl.DataFrame:
         if json_str:
             df = pl.DataFrame([CoinbaseMessage.model_validate_json(json_str)])
@@ -277,7 +277,7 @@ class CoinbaseFeed(BaseFeed):
         if qs := self.queue_one_sec.qsize():
             logger.info(f"queue_one_sec size: {qs}")
 
-    def _on_message(self, msg) -> None:
+    def _on_message(self, msg: str | dict[str, Any]) -> None:
         if isinstance(msg, str):
             try:
                 message = CoinbaseMessage.model_validate_json(msg)
@@ -391,7 +391,7 @@ class CoinbaseFeed(BaseFeed):
             yield one_sec
 
 
-async def main():
+async def main() -> None:
     import pyinstrument
 
     async with CoinbaseFeed(

@@ -1,13 +1,13 @@
 import datetime
 from pathlib import Path
 import random
-from typing import Self, Optional
+from typing import Self, Optional, Any
 from pydantic import BaseModel
 
 
 class BaseConfig(BaseModel):
     # override given settings, returning a new instance modified
-    def but(self, **kwargs) -> Self:
+    def but(self, **kwargs: Any) -> Self:
         return self.__class__(**{**self.model_dump(), **kwargs})
 
 

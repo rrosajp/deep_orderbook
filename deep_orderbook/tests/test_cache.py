@@ -10,7 +10,7 @@ from deep_orderbook.shaper import iter_shapes_t2l
 
 
 @pytest.fixture
-def test_cache_dir(tmp_path):
+def test_cache_dir(tmp_path: Path) -> Iterator[Path]:
     """Create a temporary directory for cache files"""
     cache_dir = tmp_path / "test_cache"
     cache_dir.mkdir()
@@ -20,12 +20,12 @@ def test_cache_dir(tmp_path):
 
 
 @pytest.fixture
-def array_cache(test_cache_dir):
+def array_cache(test_cache_dir: Path) -> ArrayCache:
     """Create an ArrayCache instance with test directory"""
     return ArrayCache(cache_dir=test_cache_dir)
 
 
-def test_config_hash_consistency(array_cache):
+def test_config_hash_consistency(array_cache: ArrayCache) -> None:
     """Test that same configs produce same hashes and different configs produce different hashes"""
     config1 = ShaperConfig(view_bips=40, num_side_lvl=32)
     config2 = ShaperConfig(view_bips=40, num_side_lvl=32)
@@ -39,7 +39,7 @@ def test_config_hash_consistency(array_cache):
     assert hash1 != hash3, "Different configs should produce different hashes"
 
 
-def test_cache_path_generation(array_cache):
+def test_cache_path_generation(array_cache: ArrayCache) -> None:
     """Test cache path generation"""
     config = ShaperConfig()
     data_file = Path("test_data.parquet")
@@ -50,7 +50,7 @@ def test_cache_path_generation(array_cache):
     assert data_file.stem in str(cache_path)
 
 
-def test_save_and_load_cache(array_cache):
+def test_save_and_load_cache(array_cache: ArrayCache) -> None:
     """Test saving and loading arrays from cache"""
     config = ShaperConfig()
     data_file = Path("test_data.parquet")
@@ -73,7 +73,7 @@ def test_save_and_load_cache(array_cache):
     np.testing.assert_array_equal(loaded_prices, prices_array)
 
 
-def test_clear_cache(array_cache):
+def test_clear_cache(array_cache: ArrayCache) -> None:
     """Test cache clearing functionality"""
     config = ShaperConfig()
     
@@ -96,7 +96,7 @@ def test_clear_cache(array_cache):
 
 
 @pytest.mark.asyncio
-async def test_iter_shapes_with_cache():
+async def test_iter_shapes_with_cache() -> None:
     """Test the integration of caching with iter_shapes_t2l"""
     # Setup test config
     replay_config = ReplayConfig(

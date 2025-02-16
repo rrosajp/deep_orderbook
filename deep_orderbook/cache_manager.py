@@ -1,12 +1,14 @@
-import hashlib
-import json
-from pathlib import Path
+from typing import TYPE_CHECKING, Optional, Tuple, List
 import numpy as np
+from pathlib import Path
+import json
 import asyncio
-from typing import Optional, Tuple, List
-from deep_orderbook.config import ShaperConfig, ReplayConfig
+
+from deep_orderbook.config import ReplayConfig, ShaperConfig
 from deep_orderbook.utils import logger
 
+if TYPE_CHECKING:
+    from deep_orderbook.shaper import ArrayShaper
 
 class ArrayCollector:
     """Collects arrays for a single file and handles caching."""
@@ -39,7 +41,12 @@ class ArrayCollector:
         """Check if we have enough samples for a full window."""
         return len(self.all_books) >= size
 
-    async def cache_arrays(self, shaper_config: ShaperConfig, shaper, replay_config: ReplayConfig) -> None:
+    async def cache_arrays(
+        self,
+        shaper_config: ShaperConfig,
+        shaper: 'ArrayShaper',
+        replay_config: ReplayConfig,
+    ) -> None:
         """Cache the collected arrays if we have any."""
         if self.current_file and len(self.all_books) > 0:
             await self.cache.cache_complete_arrays(
@@ -82,7 +89,7 @@ class ArrayCache:
         }
         config_str = json.dumps(relevant_params, sort_keys=True)
         return f'{replay_config.every}_vb{shaper_config.view_bips:02d}_lv{shaper_config.num_side_lvl:02d}_la{shaper_config.look_ahead:03d}_lasb{shaper_config.look_ahead_side_bips:02d}_lalv{shaper_config.look_ahead_side_width:02d}'
-        return hashlib.md5(config_str.encode()).hexdigest()[:12]
+        # return hashlib.md5(config_str.encode()).hexdigest()[:12]
 
     def _get_cache_path(self, data_file: Path, shaper_config: ShaperConfig, replay_config: ReplayConfig) -> Path:
         """Generate cache file path based on input file and config.
@@ -153,7 +160,7 @@ class ArrayCache:
         replay_config: ReplayConfig,
         all_books: list[np.ndarray],
         all_prices: list[np.ndarray],
-        shaper,
+        shaper: 'ArrayShaper',
     ) -> None:
         """Cache a complete set of arrays for a file, computing time_levels at the end."""
         if len(all_books) == 0:
@@ -181,48 +188,47 @@ class ArrayCache:
         except Exception as e:
             logger.error(f"Failed to cache data for {data_file}: {e}")
 
-    def clear_cache(self, older_than_days: Optional[int] = None):
-        """Clear old cache files"""
-        return
-        if older_than_days is not None:
-            import time
+    # def clear_cache(self, older_than_days: Optional[int] = None) -> None:
+    #     """Clear old cache files"""
+    #     if older_than_days is not None:
+    #         import time
 
-            current_time = time.time()
-            for cache_file in self.cache_dir.glob("*.npz"):
-                if (current_time - cache_file.stat().st_mtime) > (
-                    older_than_days * 86400
-                ):
-                    cache_file.unlink()
-        else:
-            for cache_file in self.cache_dir.glob("*.npz"):
-                cache_file.unlink()
+    #         current_time = time.time()
+    #         for cache_file in self.cache_dir.glob("*.npz"):
+    #             if (current_time - cache_file.stat().st_mtime) > (
+    #                 older_than_days * 86400
+    #             ):
+    #                 cache_file.unlink()
+    #     else:
+    #         for cache_file in self.cache_dir.glob("*.npz"):
+    #             cache_file.unlink()
 
 
-async def cache_manager_main():
+async def cache_manager_main() -> None:
     from deep_orderbook.config import ReplayConfig, ShaperConfig
     from deep_orderbook.shaper import iter_shapes_t2l
     from tqdm.auto import tqdm
 
-    replay_conf = ReplayConfig(
-        markets=["ETH-USD"],  # , "BTC-USD", "ETH-BTC"],
-        data_dir='/media/photoDS216/crypto/',
-        date_regexp='2024-11*',
-        max_samples=-1,
-        every="1000ms",
-    )
-    shaper_config = ShaperConfig(
-        only_full_arrays=False,
-        view_bips=20,
-        num_side_lvl=8,
-        look_ahead=32,
-        look_ahead_side_bips=10,
-        look_ahead_side_width=4,
-        rolling_window_size=256,
-    )
+    # replay_conf = ReplayConfig(
+    #     markets=["ETH-USD"],  # , "BTC-USD", "ETH-BTC"],
+    #     data_dir='/media/photoDS216/crypto/',
+    #     date_regexp='2024-11*',
+    #     max_samples=-1,
+    #     every="1000ms",
+    # )
+    # shaper_config = ShaperConfig(
+    #     only_full_arrays=False,
+    #     view_bips=20,
+    #     num_side_lvl=8,
+    #     look_ahead=32,
+    #     look_ahead_side_bips=10,
+    #     look_ahead_side_width=4,
+    #     rolling_window_size=256,
+    # )
 
     replay_conf = ReplayConfig(
         markets=["ETH-USD"],#, "BTC-USD", "ETH-BTC"],
-        data_dir='/media/photoDS216/crypto/',
+        data_dir=Path('/media/photoDS216/crypto/'),
         date_regexp='2025-02-0*',
         max_samples=-1,
         every="100ms",

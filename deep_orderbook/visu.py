@@ -1,24 +1,24 @@
 # visu.py
 
 import numpy as np
-import plotly.graph_objects as go  # type: ignore
-from plotly.subplots import make_subplots  # type: ignore
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from IPython.display import display
 
 
 class Visualizer:
     """Visualizer class to encapsulate the figure and update methods."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.fig_widget = self._create_figure()
         self._initialize_traces()
         display(self.fig_widget)
-        self.losses = []
-        self.test_losses = []  # New list for test losses
+        self.losses: list[float] = []
+        self.test_losses: list[float] = []  # New list for test losses
         self._max_points = 605  # Limit the number of points to store
         self._loss_max_points = 128  # Limit the number of points to store
 
-    def _create_figure(self):
+    def _create_figure(self) -> go.FigureWidget:
         """Creates and returns a Plotly figure widget with subplots."""
         fig = make_subplots(
             rows=6,  # Added one more row for PnL
@@ -156,7 +156,7 @@ class Visualizer:
         fig_widget = go.FigureWidget(fig)
         return fig_widget
 
-    def _initialize_traces(self):
+    def _initialize_traces(self) -> None:
         """Initializes and adds traces to the figure widget."""
         # Line traces for Bid and Ask Price Levels
         self.bid_trace = go.Scatter(
@@ -395,7 +395,7 @@ class Visualizer:
         books_z_data: np.ndarray | None,
         level_reach_z_data: np.ndarray | None,
         bidask: np.ndarray | None,
-        pred_t2l=None,
+        pred_t2l: np.ndarray | None = None,
         gt_pnl: np.ndarray | None = None,
         pred_pnl: np.ndarray | None = None,
         positions: np.ndarray | None = None,  # Ground truth positions
@@ -404,7 +404,7 @@ class Visualizer:
         down_proximity: np.ndarray | None = None,  # Ground truth down proximity
         pred_up_proximity: np.ndarray | None = None,  # Predicted up proximity
         pred_down_proximity: np.ndarray | None = None,  # Predicted down proximity
-    ):
+    ) -> None:
         """Updates the figure widget with new data."""
         try:
             with self.fig_widget.batch_update():
@@ -526,11 +526,11 @@ class Visualizer:
                         down_prox_data = down_proximity[-self._max_points :]
                         self.fig_widget.data[11].x = times
                         self.fig_widget.data[11].y = np.clip(up_prox_data, 0, 1) * (
-                            pred_t2l.shape[1] - 1
+                            pred_t2l_display.shape[1] - 1
                         )
                         self.fig_widget.data[12].x = times
                         self.fig_widget.data[12].y = np.clip(down_prox_data, 0, 1) * (
-                            pred_t2l.shape[1] - 1
+                            pred_t2l_display.shape[1] - 1
                         )
 
                     # Update predicted proximity traces if available
@@ -543,12 +543,12 @@ class Visualizer:
                         pred_down_prox_data = pred_down_proximity[-self._max_points :]
                         self.fig_widget.data[11].x = times
                         self.fig_widget.data[11].y = np.clip(pred_up_prox_data, 0, 1) * (
-                            pred_t2l.shape[1] - 1
+                            pred_t2l_display.shape[1] - 1
                         )
                         self.fig_widget.data[12].x = times
                         self.fig_widget.data[12].y = np.clip(
                             pred_down_prox_data, 0, 1
-                        ) * (pred_t2l.shape[1] - 1)
+                        ) * (pred_t2l_display.shape[1] - 1)
 
                 # Update loss traces
                 if self.losses:
@@ -586,7 +586,7 @@ class Visualizer:
 
             gc.collect()
 
-    def add_loss(self, train_loss: float | None, test_loss: float):
+    def add_loss(self, train_loss: float | None, test_loss: float) -> None:
         """Adds loss values to the loss history.
 
         Args:
