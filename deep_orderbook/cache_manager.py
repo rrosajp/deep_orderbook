@@ -10,6 +10,7 @@ from deep_orderbook.utils import logger
 if TYPE_CHECKING:
     from deep_orderbook.shaper import ArrayShaper
 
+
 class ArrayCollector:
     """Collects arrays for a single file and handles caching."""
 
@@ -77,7 +78,9 @@ class ArrayCache:
         """Create a new array collector."""
         return ArrayCollector(self, data_file)
 
-    def _get_config_hash(self, shaper_config: ShaperConfig, replay_config: ReplayConfig) -> str:
+    def _get_config_hash(
+        self, shaper_config: ShaperConfig, replay_config: ReplayConfig
+    ) -> str:
         """Create a unique hash for the shaper config parameters that affect array generation"""
         relevant_params = {
             'view_bips': shaper_config.view_bips,
@@ -91,26 +94,30 @@ class ArrayCache:
         return f'{replay_config.every}_vb{shaper_config.view_bips:02d}_lv{shaper_config.num_side_lvl:02d}_la{shaper_config.look_ahead:03d}_lasb{shaper_config.look_ahead_side_bips:02d}_lalv{shaper_config.look_ahead_side_width:02d}'
         # return hashlib.md5(config_str.encode()).hexdigest()[:12]
 
-    def _get_cache_path(self, data_file: Path, shaper_config: ShaperConfig, replay_config: ReplayConfig) -> Path:
+    def _get_cache_path(
+        self, data_file: Path, shaper_config: ShaperConfig, replay_config: ReplayConfig
+    ) -> Path:
         """Generate cache file path based on input file and config.
-        
+
         Creates a hierarchical structure: {cache_dir}/{config_hash}/{year}-{month}/{filename}.npz
         """
         config_hash = self._get_config_hash(shaper_config, replay_config)
-        
+
         # Try to extract date from filename, assuming format contains year-month
         try:
             # Assuming filename contains a date pattern like YYYY-MM or similar
-            date_parts = [part for part in data_file.stem.split('_') if '-' in part][0].split('-')
+            date_parts = [part for part in data_file.stem.split('_') if '-' in part][
+                0
+            ].split('-')
             year_month = f"{date_parts[0]}-{date_parts[1]}"
         except (IndexError, ValueError):
             # If we can't extract date, use 'unknown' as the directory
             year_month = "unknown"
-        
+
         # Create the hierarchical directory structure
         cache_subdir = self.cache_dir / config_hash / year_month
         cache_subdir.mkdir(parents=True, exist_ok=True)
-        
+
         cache_name = f"{data_file.stem}.npz"
         logger.info(f"Getting cache path for {data_file}: {cache_subdir}/{cache_name}")
         return cache_subdir / cache_name
@@ -129,7 +136,9 @@ class ArrayCache:
                 books_array = data['books_array']
                 time_levels = data['time_levels']
                 prices_array = data['prices_array']
-            logger.debug(f"Loaded cached arrays of length {len(books_array)} from {cache_path}")
+            logger.debug(
+                f"Loaded cached arrays of length {len(books_array)} from {cache_path}"
+            )
             return books_array, time_levels, prices_array
         except Exception as e:
             print(f"Error loading cache: {e}")
@@ -227,7 +236,7 @@ async def cache_manager_main() -> None:
     # )
 
     replay_conf = ReplayConfig(
-        markets=["ETH-USD"],#, "BTC-USD", "ETH-BTC"],
+        markets=["ETH-USD"],  # , "BTC-USD", "ETH-BTC"],
         data_dir=Path('/media/photoDS216/crypto/'),
         date_regexp='2025-02-0*',
         max_samples=-1,
@@ -235,20 +244,22 @@ async def cache_manager_main() -> None:
     )
     shaper_config = ShaperConfig(
         only_full_arrays=False,
-        view_bips = 5,
-        num_side_lvl = 8,
-        look_ahead = 32,
-        look_ahead_side_bips = 5,
-        look_ahead_side_width = 4,
-        rolling_window_size = 1024,
-        window_stride = 8,
+        view_bips=5,
+        num_side_lvl=8,
+        look_ahead=32,
+        look_ahead_side_bips=5,
+        look_ahead_side_width=4,
+        rolling_window_size=1024,
+        window_stride=8,
     )
 
     print(f"Configs: \n{shaper_config}\n{replay_conf}")
-    async for books_array, t2l_array, pxar in tqdm(iter_shapes_t2l(
-        replay_config=replay_conf,
-        shaper_config=shaper_config,
-    )):
+    async for books_array, t2l_array, pxar in tqdm(
+        iter_shapes_t2l(
+            replay_config=replay_conf,
+            shaper_config=shaper_config,
+        )
+    ):
         pass
 
 

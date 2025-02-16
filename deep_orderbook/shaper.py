@@ -44,7 +44,9 @@ class ArrayShaper:
         if self.ema_price is None:
             self.ema_price = price
         self.prev_price = self.ema_price
-        self.ema_price = price * self.ema_new_fac + (self.ema_price) * (1 - self.ema_new_fac)
+        self.ema_price = price * self.ema_new_fac + (self.ema_price) * (
+            1 - self.ema_new_fac
+        )
 
     def price_level_binning(
         self, df: pl.DataFrame, all_edges: list[float]
@@ -107,7 +109,9 @@ class ArrayShaper:
 
         return df_book
 
-    async def make_arr3d(self, new_books: md.OneSecondEnds) -> tuple[np.ndarray, np.ndarray]:
+    async def make_arr3d(
+        self, new_books: md.OneSecondEnds
+    ) -> tuple[np.ndarray, np.ndarray]:
         self.update_ema(new_books.avg_price())
         df_book = self.bin_books(new_books)
         # print(df_book.reverse()[self.num_side_lvl - 5 : self.num_side_lvl + 5])
@@ -292,7 +296,9 @@ async def iter_shapes_t2l(
                 books_array, time_levels, prices_array = cached_data
                 total_length = len(books_array)
 
-                end_indexes = list(range(1, 1 + total_length, shaper_config.window_stride))
+                end_indexes = list(
+                    range(1, 1 + total_length, shaper_config.window_stride)
+                )
                 if replay_config.randomize:
                     end_indexes = random.sample(end_indexes, len(end_indexes))
                 for end_idx in end_indexes:
@@ -347,9 +353,7 @@ async def iter_shapes_t2l(
             image_col, price_col = await shaper.make_arr3d(new_books)
 
             # Add arrays and check if we should yield
-            if collector.add_arrays(
-                image_col, price_col, shaper_config.window_stride
-            ):
+            if collector.add_arrays(image_col, price_col, shaper_config.window_stride):
                 # Get current window size based on only_full_arrays
                 if shaper_config.only_full_arrays:
                     # Only yield if we have a full window

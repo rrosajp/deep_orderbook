@@ -293,7 +293,10 @@ class CoinbaseFeed(BaseFeed):
 
         # if we passed to the next (or several) seconds, we send to the queue
         number_of_time_steps_past_last_message = (
-            (int(message.timestamp.timestamp()*self.config.freq) - int(self.feed_time.timestamp()*self.config.freq))
+            (
+                int(message.timestamp.timestamp() * self.config.freq)
+                - int(self.feed_time.timestamp() * self.config.freq)
+            )
             if self.feed_time
             else None
         )

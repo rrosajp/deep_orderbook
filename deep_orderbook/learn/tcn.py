@@ -1,15 +1,19 @@
-# models.py
-
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch
 from deep_orderbook.utils import logger
 
 
 class ResidualBlock(nn.Module):
     """Residual Block with dilated convolutions for temporal data."""
 
-    def __init__(self, in_channels, out_channels, kernel_size, dilation):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: tuple[int, int],
+        dilation: tuple[int, int],
+    ) -> None:
         super().__init__()
         padding = (
             (kernel_size[0] - 1) * dilation[0],  # Time dimension pad for causality
@@ -29,7 +33,7 @@ class ResidualBlock(nn.Module):
         self.relu = nn.ReLU()
         self.padding = padding
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
         # Padding: Left, Right, Top, Bottom
         pad = (self.padding[1], self.padding[1], self.padding[0], 0)
@@ -46,18 +50,18 @@ class ResidualBlock(nn.Module):
 
 class TCNModel(nn.Module):
     """Temporal Convolutional Network with Residual Blocks.
-    
+
     A neural network that processes 2D temporal data using dilated convolutions
     and residual connections. The network progressively increases the receptive field
     through exponentially increasing dilations.
-    
+
     Args:
         input_channels (int): Number of input channels in the data
         output_channels (int): Number of output channels to produce
         num_levels (int, optional): Number of residual blocks, each with increasing dilation. Defaults to 4.
         num_side_lvl (int, optional): Number of price levels per side in input. Defaults to 4.
         target_side_width (int, optional): Target number of price levels per side in output. Defaults to 4.
-    
+
     Architecture:
         1. Multiple ResidualBlocks with increasing dilation rates
         2. Each block maintains 8 channels internally
@@ -65,30 +69,37 @@ class TCNModel(nn.Module):
         4. Final 1x1 convolution to map to desired output channels
     """
 
-    def __init__(self, input_channels, output_channels, num_levels=4, num_side_lvl=4, target_side_width=4):
+    def __init__(
+        self,
+        input_channels: int,
+        output_channels: int,
+        num_levels: int = 4,
+        num_side_lvl: int = 4,
+        target_side_width: int = 4,
+    ) -> None:
         super().__init__()
-        
+
         # Calculate receptive field length
         kernel_t = 3  # temporal kernel size
         receptive_length = 1
         for i in range(num_levels):
             dilation = 2**i
             receptive_length += (kernel_t - 1) * dilation
-            
+
         logger.warning(f"TCN receptive length (timesteps): {receptive_length}")
-        
+
         # Store for potential future use
         self.receptive_length = receptive_length
-        
+
         # Each level processes 8 channels internally
         levels = [input_channels] + [8] * num_levels
         # Dilation increases exponentially in time dimension only (2^i, 1)
         dilations = [(2**i, 1) for i in range(num_levels)]
         kernel_size = (3, 3)
-        
+
         # Store the target width for output sizing
         self.target_side_width = target_side_width
-        
+
         # Create stack of residual blocks
         self.layers = nn.ModuleList()
         for i in range(num_levels):
@@ -106,7 +117,7 @@ class TCNModel(nn.Module):
         input_width = 2 * num_side_lvl
         target_width = 2 * target_side_width
         self.reduction_layers = nn.ModuleList()
-        
+
         # Add reduction layers as needed
         while input_width > target_width:
             # Use small 2x1 kernels for progressive reduction
@@ -116,22 +127,22 @@ class TCNModel(nn.Module):
                     out_channels=levels[-1],
                     kernel_size=(1, 2),  # Only reduce in the price dimension
                     stride=(1, 2),  # Reduce by factor of 2
-                    padding=(0, 0)  # No padding needed for 2x1 kernel
+                    padding=(0, 0),  # No padding needed for 2x1 kernel
                 )
             )
             input_width = input_width // 2
-        
+
         # Final 1x1 convolution to map to desired output channels
         self.final_conv = nn.Conv2d(
             in_channels=levels[-1], out_channels=output_channels, kernel_size=1
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through the network.
-        
+
         Args:
             x (torch.Tensor): Input tensor of shape [batch, channels, time, price]
-            
+
         Returns:
             torch.Tensor: Output tensor with shape [batch, output_channels, time, 2*target_side_width]
                          where the price dimension matches the target width
@@ -139,15 +150,15 @@ class TCNModel(nn.Module):
         out = x
         for layer in self.layers:
             out = layer(out)
-        
+
         # Apply progressive reduction
         for reduction in self.reduction_layers:
             out = reduction(out)
             out = F.relu(out)  # Add non-linearity between reductions
-        
+
         # Final 1x1 convolution
         out = self.final_conv(out)
-        
+
         # Fine-tune to exact size if needed
         out = F.adaptive_avg_pool2d(out, (out.shape[2], 2 * self.target_side_width))
         return out

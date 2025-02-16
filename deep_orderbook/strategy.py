@@ -84,28 +84,31 @@ class Strategy:
         return not self.should_get_long(level_proximity) and (
             # down_proximity > up_proximity  # Down stronger than up
             # up_proximity < self.threshold * 0.5  # Up signal weakened
-            down_proximity > self.threshold
+            down_proximity
+            > self.threshold
         )  # Strong down signal
 
     def compute_proximities(self, level_proximity: np.ndarray) -> tuple[float, float]:
         """Compute up and down proximities from level proximity predictions.
-        
+
         Args:
             level_proximity: Array of shape (2*side_width, 1) containing predicted level proximities.
-            
+
         Returns:
             Tuple[float, float]: (up_proximity, down_proximity)
         """
-        up_predictions = level_proximity[self.side_width:, 0]
-        down_predictions = level_proximity[:self.side_width, 0]
-        
+        up_predictions = level_proximity[self.side_width :, 0]
+        down_predictions = level_proximity[: self.side_width, 0]
+
         up_proximity: float = float(np.mean(up_predictions))
         down_proximity: float = float(np.mean(down_predictions))
-        
+
         return up_proximity, down_proximity
 
     def compute_pnl(
-        self, prices: np.ndarray[np.dtype[np.float64], np.dtype[np.float64]], level_proximity_pred: np.ndarray[np.dtype[np.float64], np.dtype[np.float64]]
+        self,
+        prices: np.ndarray[np.dtype[np.float64], np.dtype[np.float64]],
+        level_proximity_pred: np.ndarray[np.dtype[np.float64], np.dtype[np.float64]],
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Compute PnL based on price movements and level proximity predictions.
 
@@ -154,7 +157,9 @@ class Strategy:
 
             # If we're in a position, track the changes in bid price
             elif self.position == 1 and t > 0:  # If long and not first timestep
-                pnl[t] += float(prices[t, 0]) - float(prices[t - 1, 0])  # Track changes in bid price
+                pnl[t] += float(prices[t, 0]) - float(
+                    prices[t - 1, 0]
+                )  # Track changes in bid price
 
             # Update cooldown counter if we're flat
             if self.position == 0:
@@ -190,7 +195,9 @@ async def main() -> None:
         replay_config=replay_conf,
         shaper_config=shaper_config,
     ):
-        pnl, positions, up_proximities, down_proximities = strategy.compute_pnl(pxar, t2l_array)
+        pnl, positions, up_proximities, down_proximities = strategy.compute_pnl(
+            pxar, t2l_array
+        )
         # print(t2l_array)
         print(positions)
         print(pnl)

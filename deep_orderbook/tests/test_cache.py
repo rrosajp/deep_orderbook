@@ -3,7 +3,7 @@ import numpy as np
 from pathlib import Path
 import shutil
 import asyncio
-
+from typing import Iterator
 from deep_orderbook.cache_manager import ArrayCache
 from deep_orderbook.config import ShaperConfig, ReplayConfig
 from deep_orderbook.shaper import iter_shapes_t2l

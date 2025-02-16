@@ -409,11 +409,13 @@ class Visualizer:
         try:
             with self.fig_widget.batch_update():
                 # Transform and clip all image data
-                books_z_data, level_reach_display, bidask, feature_points = self.for_image_display(
-                    books_z_data,
-                    level_reach_z_data,
-                    bidask,
-                    max_points=self._max_points,
+                books_z_data, level_reach_display, bidask, feature_points = (
+                    self.for_image_display(
+                        books_z_data,
+                        level_reach_z_data,
+                        bidask,
+                        max_points=self._max_points,
+                    )
                 )
                 # Transform prediction data in the same way
                 _, pred_t2l_display, _, _ = (
@@ -501,18 +503,22 @@ class Visualizer:
                 # Update heatmaps
                 if books_z_data is not None:
                     self.fig_widget.data[6].z = books_z_data
-                    
+
                     # Update feature markers if available
                     if feature_points is not None:
                         feature2_points, feature3_points = feature_points
-                        
+
                         # Update feature 2 markers (up triangles)
                         self.fig_widget.data[7].x = feature2_points[0]  # time dimension
-                        self.fig_widget.data[7].y = feature2_points[1]  # price level dimension
-                        
+                        self.fig_widget.data[7].y = feature2_points[
+                            1
+                        ]  # price level dimension
+
                         # Update feature 3 markers (down triangles)
                         self.fig_widget.data[8].x = feature3_points[0]  # time dimension
-                        self.fig_widget.data[8].y = feature3_points[1]  # price level dimension
+                        self.fig_widget.data[8].y = feature3_points[
+                            1
+                        ]  # price level dimension
 
                 if level_reach_display is not None:
                     self.fig_widget.data[9].z = level_reach_display
@@ -542,9 +548,9 @@ class Visualizer:
                         pred_up_prox_data = pred_up_proximity[-self._max_points :]
                         pred_down_prox_data = pred_down_proximity[-self._max_points :]
                         self.fig_widget.data[11].x = times
-                        self.fig_widget.data[11].y = np.clip(pred_up_prox_data, 0, 1) * (
-                            pred_t2l_display.shape[1] - 1
-                        )
+                        self.fig_widget.data[11].y = np.clip(
+                            pred_up_prox_data, 0, 1
+                        ) * (pred_t2l_display.shape[1] - 1)
                         self.fig_widget.data[12].x = times
                         self.fig_widget.data[12].y = np.clip(
                             pred_down_prox_data, 0, 1
@@ -612,11 +618,16 @@ class Visualizer:
         t2l_array: np.ndarray | None = None,
         prices_array: np.ndarray | None = None,
         max_points: int = 605,  # Default to _max_points value
-    ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None, tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]] | None]:
+    ) -> tuple[
+        np.ndarray | None,
+        np.ndarray | None,
+        np.ndarray | None,
+        tuple[tuple[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]] | None,
+    ]:
         im_data: np.ndarray = np.ndarray(shape=(0, 0))
         t2l_data: np.ndarray = np.ndarray(shape=(0, 0))
         feature_points = None
-        
+
         if books_array is not None:
             # Take last max_points if array is longer
             if books_array.shape[0] > max_points:
@@ -631,7 +642,7 @@ class Visualizer:
             feature3_nonzero = np.nonzero(books_array[:, :, 2] != 0)
             feature_points = (
                 (feature2_nonzero[0], feature2_nonzero[1]),
-                (feature3_nonzero[0], feature3_nonzero[1])
+                (feature3_nonzero[0], feature3_nonzero[1]),
             )
 
         if t2l_array is not None:

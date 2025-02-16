@@ -7,18 +7,19 @@ from deep_orderbook.learn.data_loader import DataLoaderWorker
 from deep_orderbook.config import ReplayConfig, ShaperConfig, TrainConfig
 from deep_orderbook.utils import logger
 import time
-import os
-import sys
 from pathlib import Path
+import torch.nn as nn
+import torch.optim as optim
+
 
 class Trainer:
     """Trainer class to handle training and prediction."""
 
     def __init__(
         self,
-        model,
-        optimizer,
-        criterion,
+        model: nn.Module,
+        optimizer: optim.Optimizer,
+        criterion: nn.Module,
         train_config: TrainConfig,
         replay_config: ReplayConfig,
         shaper_config: ShaperConfig,
@@ -34,7 +35,7 @@ class Trainer:
         self.replay_config = replay_config
         self.shaper_config = shaper_config
         self.workers: list[DataLoaderWorker] = []
-        
+
         # Create checkpoint directory if it doesn't exist
         self.train_config.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.batches_since_last_checkpoint = 0
@@ -46,13 +47,16 @@ class Trainer:
     def should_save_checkpoint(self) -> bool:
         """Determines if we should save a checkpoint based on batch count and time elapsed."""
         # Always allow checkpoints at end of epoch
-        if self.batches_since_last_checkpoint >= self.train_config.save_checkpoint_batches:
+        if (
+            self.batches_since_last_checkpoint
+            >= self.train_config.save_checkpoint_batches
+        ):
             minutes_elapsed = (time.time() - self.last_checkpoint_time) / 60
             if minutes_elapsed >= self.train_config.save_checkpoint_mins:
                 return True
         return False
 
-    def start_data_loading(self):
+    def start_data_loading(self) -> None:
         """Starts data loading workers."""
         num_workers = self.train_config.num_workers
         for _ in range(num_workers):
@@ -61,10 +65,10 @@ class Trainer:
                 replay_config=self.replay_config,
                 shaper_config=self.shaper_config,
             )
-            worker = data_loader_worker.start()
+            data_loader_worker.start()
             self.workers.append(data_loader_worker)
 
-    def save_checkpoint(self):
+    def save_checkpoint(self) -> None:
         """Saves a checkpoint of the current training state."""
         checkpoint = {
             'epoch': self.current_epoch,
@@ -76,29 +80,34 @@ class Trainer:
             'replay_config': self.replay_config.model_dump(),
             'shaper_config': self.shaper_config.model_dump(),
         }
-        
+
         # Create checkpoint filename with timestamp
-        checkpoint_path = self.train_config.checkpoint_dir / f'checkpoint_e{self.current_epoch}_b{self.total_batches_processed}.pt'
+        checkpoint_path = (
+            self.train_config.checkpoint_dir
+            / f'checkpoint_e{self.current_epoch}_b{self.total_batches_processed}.pt'
+        )
         torch.save(checkpoint, checkpoint_path)
         logger.warning(f"=== Saved checkpoint to {checkpoint_path} ===")
         logger.warning(f"    - Epoch {self.current_epoch}")
         logger.warning(f"    - Batches processed: {self.total_batches_processed}")
         logger.warning(f"    - Samples processed: {self.total_samples_processed}")
-        
+
         # Update checkpoint timing
         self.last_checkpoint_time = time.time()
         self.batches_since_last_checkpoint = 0
-        
+
         # Remove old checkpoints if we have more than keep_last_n_checkpoints
         checkpoints = sorted(self.train_config.checkpoint_dir.glob('checkpoint_*.pt'))
         if len(checkpoints) > self.train_config.keep_last_n_checkpoints:
-            for checkpoint_to_remove in checkpoints[:-self.train_config.keep_last_n_checkpoints]:
+            for checkpoint_to_remove in checkpoints[
+                : -self.train_config.keep_last_n_checkpoints
+            ]:
                 checkpoint_to_remove.unlink()
                 logger.warning(f"Removed old checkpoint: {checkpoint_to_remove}")
 
-    def load_checkpoint(self, checkpoint_path: str | Path):
+    def load_checkpoint(self, checkpoint_path: str | Path) -> bool:
         """Loads a checkpoint and restores the training state.
-        
+
         Args:
             checkpoint_path: Path to the checkpoint file
         """
@@ -107,41 +116,48 @@ class Trainer:
             # Add PosixPath to safe globals for PyTorch 2.6+ compatibility
             from pathlib import PosixPath
             import torch.serialization
+
             torch.serialization.add_safe_globals([PosixPath])
-            
+
             # Try loading with weights_only=True first (safer)
             try:
                 checkpoint = torch.load(checkpoint_path, map_location=self.device)
             except Exception as e:
                 if "WeightsUnpickler error" in str(e):
-                    logger.warning("Attempting to load checkpoint with weights_only=False (only do this for trusted checkpoints)")
-                    checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
+                    logger.warning(
+                        "Attempting to load checkpoint with weights_only=False (only do this for trusted checkpoints)"
+                    )
+                    checkpoint = torch.load(
+                        checkpoint_path, map_location=self.device, weights_only=False
+                    )
                 else:
                     raise e
-            
+
             # Log the contents of the checkpoint
             logger.info("Checkpoint contains:")
             logger.info(f"  - Epoch: {checkpoint['epoch']}")
             logger.info(f"  - Total samples: {checkpoint['total_samples_processed']}")
-            logger.info(f"  - Total batches: {checkpoint.get('total_batches_processed', 0)}")
-            
+            logger.info(
+                f"  - Total batches: {checkpoint.get('total_batches_processed', 0)}"
+            )
+
             # Restore model and optimizer states
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            
+
             # Restore training state
             self.current_epoch = checkpoint['epoch']
             self.total_batches_processed = checkpoint.get('total_batches_processed', 0)
             self.total_samples_processed = checkpoint['total_samples_processed']
             self.batches_since_last_checkpoint = 0
             self.last_checkpoint_time = time.time()
-            
+
             logger.warning(f"=== Successfully resumed training from:")
             logger.warning(f"    - Epoch {self.current_epoch}")
             logger.warning(f"    - Samples processed: {self.total_samples_processed}")
             logger.warning(f"    - Batches processed: {self.total_batches_processed}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to load checkpoint: {str(e)}")
             logger.error("Starting training from scratch")
@@ -149,19 +165,21 @@ class Trainer:
 
     def find_latest_checkpoint(self) -> Path | None:
         """Find the latest checkpoint in the checkpoint directory.
-        
+
         Returns:
             Path to the latest checkpoint or None if no checkpoints exist
         """
         if not self.train_config.checkpoint_dir.exists():
-            logger.warning(f"Checkpoint directory {self.train_config.checkpoint_dir} does not exist")
+            logger.warning(
+                f"Checkpoint directory {self.train_config.checkpoint_dir} does not exist"
+            )
             return None
-            
+
         checkpoints = sorted(self.train_config.checkpoint_dir.glob('checkpoint_*.pt'))
         if not checkpoints:
             logger.warning("No checkpoints found")
             return None
-            
+
         latest = checkpoints[-1]
         logger.warning(f"Found latest checkpoint: {latest}")
         logger.warning(f"Checkpoint filename indicates: {latest.stem}")
@@ -169,28 +187,30 @@ class Trainer:
 
     def load_latest_checkpoint(self) -> bool:
         """Automatically find and load the latest checkpoint.
-        
+
         Returns:
             bool: True if checkpoint was loaded successfully, False otherwise
         """
         latest = self.find_latest_checkpoint()
         if latest is None:
             return False
-            
+
         return self.load_checkpoint(latest)
 
-    def train_step(self, test_data=None):
+    def train_step(
+        self, test_data: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None
+    ) -> tuple[float, float | None, np.ndarray] | None:
         """Performs a training step using a batch of data from the queue and optionally computes test loss.
-        
+
         Args:
             test_data: Optional tuple of (books_array, time_levels, pxar) for computing test loss
-            
+
         Returns:
             Tuple of (train_loss, test_loss, prediction) where test_loss is None if no test_data provided
         """
-        books_array_list = []
-        time_levels_list = []
-        pxar_list = []
+        books_array_list: list[np.ndarray] = []
+        time_levels_list: list[np.ndarray] = []
+        pxar_list: list[np.ndarray] = []
         batch_size = self.train_config.batch_size
         while len(books_array_list) < batch_size:
             try:
@@ -201,7 +221,7 @@ class Trainer:
             except Exception as e:
                 if len(books_array_list) == 0:
                     logger.warning(f"Data queue is empty. Waiting for data... {e}")
-                    return None, None, None
+                    return None
                 else:
                     logger.warning(
                         "Not enough samples for a full batch. Proceeding with available samples."
@@ -252,7 +272,7 @@ class Trainer:
         self.total_samples_processed += len(books_array_list)
         self.total_batches_processed += 1
         self.batches_since_last_checkpoint += 1
-        
+
         # Check if we should save a checkpoint
         if self.should_save_checkpoint():
             self.save_checkpoint()
@@ -262,22 +282,26 @@ class Trainer:
         prediction = None
         if test_data is not None:
             test_books_array, test_time_levels, _ = test_data
-            test_loss, prediction = self.compute_test_loss(test_books_array, test_time_levels)
+            test_loss, prediction = self.compute_test_loss(
+                test_books_array, test_time_levels
+            )
 
         # Return losses and prediction
         return (
             train_loss.item(),
             test_loss,
-            reshaped_output.cpu().numpy() if prediction is None else prediction
+            reshaped_output.cpu().numpy() if prediction is None else prediction,
         )
 
-    def compute_test_loss(self, books_array: np.ndarray, time_levels: np.ndarray) -> tuple[float, np.ndarray]:
+    def compute_test_loss(
+        self, books_array: np.ndarray, time_levels: np.ndarray
+    ) -> tuple[float, np.ndarray]:
         """Computes test loss and predictions on test data.
-        
+
         Args:
             books_array: Input test data
             time_levels: Target test data
-            
+
         Returns:
             Tuple of (test_loss, prediction)
         """
@@ -286,7 +310,7 @@ class Trainer:
             # Prepare test data
             test_input = torch.from_numpy(books_array).float().to(self.device)
             test_target = torch.from_numpy(time_levels).float().to(self.device)
-            
+
             # Add batch dimension and rearrange if needed
             if test_input.dim() == 3:
                 test_input = test_input.unsqueeze(0)
@@ -294,19 +318,21 @@ class Trainer:
             if test_target.dim() == 3:
                 test_target = test_target.unsqueeze(0)
                 test_target = test_target.permute(0, 3, 1, 2)
-            
+
             # Forward pass
             test_prediction = self.model(test_input)
             test_loss = self.criterion(test_prediction, test_target).item()
-            
+
             # Get prediction in numpy format and reshape to match time_levels
-            prediction = test_prediction[0].permute(1, 2, 0).cpu().numpy()  # Reshape to (time, features, channels)
-            
+            prediction = (
+                test_prediction[0].permute(1, 2, 0).cpu().numpy()
+            )  # Reshape to (time, features, channels)
+
         return test_loss, prediction
 
     def predict(self, books_array: np.ndarray) -> np.ndarray:
         """Makes a prediction on the input data.
-        
+
         This method is kept for backward compatibility and simple inference.
         For training with test loss computation, use train_step with test_data.
         """
@@ -320,24 +346,24 @@ class Trainer:
             predictions = output.detach().cpu().numpy()
         return predictions.squeeze()
 
-    def save_model(self, filepath='trained_model.pth'):
+    def save_model(self, filepath: str = 'trained_model.pth') -> None:
         """Saves the trained model."""
         torch.save(self.model.state_dict(), filepath)
 
-    def load_model(self, filepath='trained_model.pth'):
+    def load_model(self, filepath: str = 'trained_model.pth') -> None:
         """Loads a trained model."""
         self.model.load_state_dict(torch.load(filepath, map_location=self.device))
         self.model.to(self.device)
         self.model.eval()
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Stop all workers and cleanup resources."""
         for worker in self.workers:
             worker.stop()
         self.workers = []
 
 
-def main():
+def main() -> None:
     # Example usage of Trainer
     from deep_orderbook.learn.tcn import TCNModel
     import torch.optim as optim
@@ -350,7 +376,7 @@ def main():
 
     # Initialize model, optimizer, and loss function
     model = TCNModel(input_channels, output_channels, num_levels=4)
-    optimizer = optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-5)
     criterion = nn.MSELoss()
 
     # Configurations

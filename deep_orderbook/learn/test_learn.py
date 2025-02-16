@@ -1,11 +1,8 @@
 import asyncio
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 from typing import AsyncGenerator, Tuple
 import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
 
 from deep_orderbook.config import ReplayConfig, ShaperConfig, TrainConfig
@@ -21,7 +18,9 @@ async def train_and_predict(
     shaper_config: ShaperConfig,
     test_config: ReplayConfig,
     resume_from_checkpoint: bool = True,
-):
+) -> AsyncGenerator[
+    Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float, float], None
+]:
     from deep_orderbook.shaper import iter_shapes_t2l
 
     logger.warning(f"[Training] Starting training with {replay_config.num_files()=}")
@@ -61,8 +60,6 @@ async def train_and_predict(
     trainer.start_data_loading()
     logger.info("[Training] Data loading workers started")
 
-    # Lists to store losses and predictions for plotting
-    losses: list[float] = []
     samples_processed = trainer.total_samples_processed
 
     # Iterate over data
@@ -70,41 +67,56 @@ async def train_and_predict(
     while epoch_left > 0:
         epoch_left -= 1
         trainer.current_epoch = config.epochs - epoch_left
-        logger.info(f"[Training] Starting epoch {trainer.current_epoch}/{config.epochs}")
+        logger.info(
+            f"[Training] Starting epoch {trainer.current_epoch}/{config.epochs}"
+        )
         epoch_samples = 0
-        
+
         async for books_array, time_levels, pxar in iter_shapes_t2l(
             replay_config=test_config,
             shaper_config=shaper_config.but(only_full_arrays=False),
         ):
-            logger.debug(f"[Training] Queue size before train step: {trainer.data_queue.qsize()}")
+            logger.debug(
+                f"[Training] Queue size before train step: {trainer.data_queue.qsize()}"
+            )
             try:
                 # Get training loss, test loss and prediction using the test data
-                train_loss, test_loss, prediction = trainer.train_step(test_data=(books_array, time_levels, pxar))
-                if train_loss is None:
-                    logger.warning("[Training] train_step returned None, queue might be empty")
+                result = trainer.train_step(test_data=(books_array, time_levels, pxar))
+                if result is None:
+                    logger.warning(
+                        "[Training] train_step returned None, queue might be empty"
+                    )
                     continue
-                
+                train_loss, test_loss, prediction = result
+                if test_loss is None:
+                    continue
+
                 samples_processed += 1
                 epoch_samples += 1
                 if epoch_samples % 10 == 0:
-                    logger.debug(f"[Training] Processed {epoch_samples} samples in current epoch {trainer.current_epoch}, total: {samples_processed}, train_loss: {train_loss:.4f}, test_loss: {test_loss:.4f}")
+                    logger.debug(
+                        f"[Training] Processed {epoch_samples} samples in current epoch {trainer.current_epoch}, total: {samples_processed}, train_loss: {train_loss:.4f}, test_loss: {test_loss:.4f}"
+                    )
 
                 yield books_array, time_levels, pxar, prediction, train_loss, test_loss
             except Exception as e:
                 logger.error(f"[Training] Exception in training: {e}")
                 continue
-        
-        logger.info(f"[Training] Completed epoch {trainer.current_epoch} with {epoch_samples} samples")
+
+        logger.info(
+            f"[Training] Completed epoch {trainer.current_epoch} with {epoch_samples} samples"
+        )
         # Save checkpoint at the end of each epoch
         trainer.save_checkpoint()
 
+
 # Main function to run the script
-async def main():
+async def main() -> None:
     from tqdm.auto import tqdm
     from deep_orderbook.utils import make_handlers
     from deep_orderbook.visu import Visualizer
     from deep_orderbook.strategy import Strategy
+
     # logger.setLevel('DEBUG')
     # change logging file to train.log
     line_handler, noline_handler = make_handlers('train.log')
@@ -120,7 +132,7 @@ async def main():
         num_levels=8,
         learning_rate=0.0001,
         epochs=10,
-        save_checkpoint_mins=5.0,    # But wait at least N minutes between saves
+        save_checkpoint_mins=5.0,  # But wait at least N minutes between saves
         checkpoint_dir=Path("checkpoints"),  # Directory to save checkpoints
     )
     replay_config = ReplayConfig(
@@ -143,13 +155,15 @@ async def main():
     test_config = replay_config.but(date_regexp='2024-11-06T0*')
 
     # Define your asynchronous function to update the figure
-    bar = tqdm(train_and_predict(
-        config=train_config,
-        replay_config=replay_config,
-        shaper_config=shaper_config,
-        test_config=test_config,
-        resume_from_checkpoint=True,  # Automatically try to load latest checkpoint
-    ))
+    bar = tqdm(
+        train_and_predict(
+            config=train_config,
+            replay_config=replay_config,
+            shaper_config=shaper_config,
+            test_config=test_config,
+            resume_from_checkpoint=True,  # Automatically try to load latest checkpoint
+        )
+    )
     vis = Visualizer()
     strategy = Strategy(threshold=0.3)
     async for books_arr, t2l, pxar, pred_t2l, train_loss, test_loss in bar:
@@ -162,15 +176,24 @@ async def main():
             print(f"error")
             break
         gt_pnl, pos, gt_up_prox, gt_down_prox = strategy.compute_pnl(pxar, t2l)
-        pred_pnl, pred_pos, pred_up_prox, pred_down_prox = strategy.compute_pnl(pxar, pred_t2l)
+        pred_pnl, pred_pos, pred_up_prox, pred_down_prox = strategy.compute_pnl(
+            pxar, pred_t2l
+        )
 
         vis.add_loss(train_loss, test_loss)
         vis.update(
-            books_z_data=books_arr, level_reach_z_data=t2l, bidask=pxar, 
-            pred_t2l=pred_t2l, gt_pnl=gt_pnl, pred_pnl=pred_pnl, 
-            positions=pos, pred_positions=pred_pos,
-            up_proximity=gt_up_prox, down_proximity=gt_down_prox,
-            pred_up_proximity=pred_up_prox, pred_down_proximity=pred_down_prox
+            books_z_data=books_arr,
+            level_reach_z_data=t2l,
+            bidask=pxar,
+            pred_t2l=pred_t2l,
+            gt_pnl=gt_pnl,
+            pred_pnl=pred_pnl,
+            positions=pos,
+            pred_positions=pred_pos,
+            up_proximity=gt_up_prox,
+            down_proximity=gt_down_prox,
+            pred_up_proximity=pred_up_prox,
+            pred_down_proximity=pred_down_prox,
         )
 
 

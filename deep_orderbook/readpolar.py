@@ -8,7 +8,7 @@ from tqdm.auto import tqdm
 from deep_orderbook.feeds.coinbase_feed import CoinbaseFeed
 
 
-async def process_line(line, schema, categories):
+async def process_line(line: str, schema: pl.Schema, categories: dict[str, list[str]]) -> pl.DataFrame:
     data = json.loads(line)
     event = data["events"][0]
     updates = event["updates"]
@@ -34,7 +34,7 @@ async def process_line(line, schema, categories):
     return df
 
 
-async def main(folder=Path('data/L2/BTC-USD/'), msg_type='update'):
+async def main(folder: Path = Path('data/L2/BTC-USD/'), msg_type: str = 'update') -> None:
     input_file = folder / f'2024-08-04T23-00-00_{msg_type}.jsonl'
     input_file = folder / f'2024-08-05T04-26-38_{msg_type}.jsonl'
     output_file = input_file.with_suffix('.parquet')
@@ -74,9 +74,9 @@ async def main(folder=Path('data/L2/BTC-USD/'), msg_type='update'):
     )
 
 
-async def merge(msg_type):
+async def merge(msg_type: str) -> pl.DataFrame:
     with pl.StringCache():
-        df = None
+        df: pl.DataFrame | None = None
         for folder in Path('data/L2').iterdir():
             if folder.is_dir():
                 for tstr in [
@@ -106,7 +106,7 @@ async def merge(msg_type):
                     )
         return df
     
-async def resort_by_ts():
+async def resort_by_ts() -> None:
     for filename in Path('/media/photoDS216/crypto').iterdir():
         if filename.is_file() and filename.suffix == '.parquet':
             print(f"Reading {filename}")
