@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import AliasChoices, BaseModel, Field, ValidationInfo, field_validator
 from deep_orderbook.utils import logger
 import polars as pl
+from typing import Any
 
 
 class Message(BaseModel):
@@ -10,13 +11,13 @@ class Message(BaseModel):
     def symbol(self) -> str:
         raise NotImplementedError
 
-    def is_book_update(self):
+    def is_book_update(self) -> bool:
         raise NotImplementedError
 
-    def is_trade_update(self):
+    def is_trade_update(self) -> bool:
         raise NotImplementedError
 
-    def is_subscription(self):
+    def is_subscription(self) -> bool:
         raise NotImplementedError
 
 
@@ -28,7 +29,7 @@ class Trade(BaseModel):
     side: str
     # time: datetime
 
-    def to_binance_format(self, time: int = 0):
+    def to_binance_format(self, time: int = 0) -> Any:
         return TradeUpdate(
             e='aggTrade',
             E=0,
@@ -56,10 +57,10 @@ class OneSecondEnds(BaseModel, arbitrary_types_allowed=True):
         schema={"price": pl.Float32, "size": pl.Float32, "side": pl.Utf8}
     )
 
-    def no_bbo(self):
+    def no_bbo(self) -> bool:
         return len(self.bids) == 0 or len(self.asks) == 0
 
-    def bbos(self):
+    def bbos(self) -> tuple[OrderLevel, OrderLevel]:
         return (
             OrderLevel(**next(self.bids.iter_rows(named=True))),
             OrderLevel(**next(self.asks.iter_rows(named=True))),
@@ -70,7 +71,7 @@ class OneSecondEnds(BaseModel, arbitrary_types_allowed=True):
         price = (bb.price * ba.size + ba.price * bb.size) / (bb.size + ba.size)
         return round(price, 8)
 
-    def trades_to_3num(self):
+    def trades_to_3num(self) -> pl.DataFrame:
         return self.trades.with_columns(
             [
                 (1 - 2 * (pl.col('side') == 'SELL').cast(pl.Int8)).alias('up'),
@@ -83,7 +84,7 @@ class MulitSymbolOneSecondEnds(BaseModel):
     ts: datetime
     symbols: dict[str, OneSecondEnds] = {}
 
-    def __str__(self):
+    def __str__(self) -> str:
         """returns a simplfied verion of the object.
         for each symbol, BBO and number of trades"""
         to_ret = f"One second: {self.ts} \n"
@@ -94,7 +95,7 @@ class MulitSymbolOneSecondEnds(BaseModel):
     @classmethod
     def make_one_second(
         cls, ts: datetime, depth_managers: dict[str, 'DepthCachePlus']
-    ):
+    ) -> 'MulitSymbolOneSecondEnds':
         oneSec = MulitSymbolOneSecondEnds(ts=ts)
         for symbol, depth in depth_managers.items():
             oneSec.symbols[symbol] = depth.make_one_sec(ts=ts)
@@ -107,7 +108,7 @@ class BookUpdate(BaseModel):
 
     @field_validator('bids', 'asks', mode='before')
     @classmethod
-    def from_lists(cls, values: list, info: ValidationInfo):
+    def from_lists(cls, values: list, info: ValidationInfo) -> list[OrderLevel]:
         if not values:
             return []
         if isinstance(values[0], list):
@@ -191,10 +192,10 @@ class TradeUpdate(BinanceUpdate):
 class TradeBunch(BaseModel):
     trades: list[Trade] = []
 
-    def add_trade(self, trade: Trade):
+    def add_trade(self, trade: Trade) -> None:
         self.trades.append(trade)
 
-    def clear_trades(self):
+    def clear_trades(self) -> None:
         self.trades = []
 
 
@@ -209,7 +210,7 @@ class DepthCachePlus(BaseModel):
     def add_bid(self, bid: OrderLevel) -> None:
         self.s_bids[bid.price] = bid.size
 
-    def add_ask(self, ask: OrderLevel):
+    def add_ask(self, ask: OrderLevel) -> None:
         self.s_asks[ask.price] = ask.size
 
     def get_bids(self) -> list[tuple[float, float]]:
@@ -242,13 +243,13 @@ class DepthCachePlus(BaseModel):
         asks = self.get_asks()
         logger.debug("result: \nBIDS: {0} \nASKS: {1}".format(bids[:5], asks[:5]))
 
-    def update(self, updates: BookUpdate):
+    def update(self, updates: BookUpdate) -> None:
         for bid in updates.bids:
             self.add_bid(bid)
         for ask in updates.asks:
             self.add_ask(ask)
 
-    def reset(self, snapshot: BookUpdate | None = None):
+    def reset(self, snapshot: BookUpdate | None = None) -> None:
         self.s_bids.clear()
         self.s_asks.clear()
         if snapshot:
@@ -257,7 +258,7 @@ class DepthCachePlus(BaseModel):
             for ask in snapshot.asks:
                 self.add_ask(ask)
 
-    def get_bids_asks(self):
+    def get_bids_asks(self) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
         bids = self.get_bids()
         asks = self.get_asks()
         if bids and asks and bids[0][0] >= asks[0][0]:
@@ -266,14 +267,14 @@ class DepthCachePlus(BaseModel):
         # assert bids[0][0] < asks[0][0]
         return bids, asks
 
-    def dump(self, and_reset_trades=False) -> tuple[str, str]:
+    def dump(self, and_reset_trades: bool = False) -> tuple[str, str]:
         depths: str = self.model_dump_json(include={'_bids', '_asks'})
         trades: str = self.trade_bunch.model_dump_json(include={'trades'})
         if and_reset_trades:
             self.trade_bunch.clear_trades()
         return depths, trades
 
-    def make_one_sec(self, ts: datetime):
+    def make_one_sec(self, ts: datetime) -> OneSecondEnds:
         bids, asks = self.get_bids_asks()
         # if not bids or not asks:
         #     logger.warning(f"no bids or asks for {symbol}")
