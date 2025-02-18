@@ -36,6 +36,7 @@ class ReplayConfig(FeedConfig):
         return sorted(self.data_dir.glob(filename_regexp))
     
     def num_files(self) -> int:
+        assert len(self.file_list()) > 0, f"No files found for {self.date_regexp}"
         return len(self.file_list())
 
     def but_random_file(self) -> Self:
