@@ -532,11 +532,11 @@ class Visualizer:
                         down_prox_data = down_proximity[-self._max_points :]
                         self.fig_widget.data[11].x = times
                         self.fig_widget.data[11].y = np.clip(up_prox_data, 0, 1) * (
-                            pred_t2l_display.shape[1] - 1
+                            pred_t2l_display.shape[0] - 1
                         )
                         self.fig_widget.data[12].x = times
                         self.fig_widget.data[12].y = np.clip(down_prox_data, 0, 1) * (
-                            pred_t2l_display.shape[1] - 1
+                            pred_t2l_display.shape[0] - 1
                         )
 
                     # Update predicted proximity traces if available
@@ -550,11 +550,11 @@ class Visualizer:
                         self.fig_widget.data[11].x = times
                         self.fig_widget.data[11].y = np.clip(
                             pred_up_prox_data, 0, 1
-                        ) * (pred_t2l_display.shape[1] - 1)
+                        ) * (pred_t2l_display.shape[0] - 1)
                         self.fig_widget.data[12].x = times
                         self.fig_widget.data[12].y = np.clip(
                             pred_down_prox_data, 0, 1
-                        ) * (pred_t2l_display.shape[1] - 1)
+                        ) * (pred_t2l_display.shape[0] - 1)
 
                 # Update loss traces
                 if self.losses:
