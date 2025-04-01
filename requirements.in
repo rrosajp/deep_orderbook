@@ -23,3 +23,5 @@ pandas
 holoviews 
 bokeh 
 jupyter-bokeh
+
+rich

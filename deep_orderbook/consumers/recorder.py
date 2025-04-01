@@ -106,7 +106,7 @@ async def main():
         try:
             async with CoinbaseFeed(markets=MARKETS, feed_msg_queue=True) as feed:
                 async with FeedWriter(
-                    feed=feed, directory='data/L2', save_path='/media/photoDS216/crypto'
+                    feed=feed, directory='data/L2', save_path='../crypto'
                 ) as recorder:
                     await recorder.start_recording()
                     await recorder.sleep_until_next_hour()

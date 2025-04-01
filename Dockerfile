@@ -1,9 +1,11 @@
-FROM python:3.7
+FROM python:3.12
 
 COPY . deep_orderbook
 
-RUN pip install --no-cache-dir -r deep_orderbook/requirements.txt
+WORKDIR /deep_orderbook
 
-RUN pip install -e deep_orderbook 
+RUN pip install --no-cache-dir -r requirements.txt
 
-CMD [ "python", "./deep_orderbook/deep_orderbook/recorder.py" ]
+RUN pip install -e . 
+
+CMD [ "python", "-m", "deep_orderbook.consumers.recorder" ]

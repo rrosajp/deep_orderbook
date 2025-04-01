@@ -1,7 +1,7 @@
 [project]
 name = "deep-orderbook"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [{ name = "gQuantCoder" }]
 
 version="0.5.299792458"
@@ -11,7 +11,7 @@ dependencies = [
 [tool.black]
 line-length = 88
 skip-string-normalization=true
-target_version = ['py311']
+target_version = ['py312']
 exclude = '''
 /(
   | migrations
@@ -37,8 +37,8 @@ asyncio_mode = "auto"
 # Same as Black.
 line-length = 127 # 88
 
-# Assume Python 3.11.
-target-version = "py311"
+# Assume Python 3.12.
+target-version = "py312"
 
 [tool.ruff.mccabe]
 # Unlike Flake8, default to a complexity level of 10.

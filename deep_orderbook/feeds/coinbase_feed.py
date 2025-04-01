@@ -111,7 +111,7 @@ class CoinbaseFeed(BaseFeed):
         }
         self.trade_tapes: dict[str, list[md.Trade]] = collections.defaultdict(list)
         self.run_timer = False
-        self.feed_time: datetime
+        self.feed_time: datetime | None = None
         self.next_cut_time = 0.0
         self.queue: asyncio.Queue[CoinbaseMessage] = asyncio.Queue()
         self.queue_one_sec: asyncio.Queue[md.MulitSymbolOneSecondEnds] = asyncio.Queue(
